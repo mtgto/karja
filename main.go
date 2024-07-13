@@ -56,7 +56,9 @@ func (s *ReverseProxyService) watchContainers(ctx context.Context, dockerClient 
 func (s *ReverseProxyService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, ctr := range s.containers {
 		if strings.HasPrefix(r.Host, ctr.Name+".") {
-			ctr.proxy.ServeHTTP(w, r)
+			if ctr.proxy != nil {
+				ctr.proxy.ServeHTTP(w, r)
+			}
 			return
 		}
 	}

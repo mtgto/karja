@@ -41,7 +41,10 @@ func (c *DockerClient) fetchContainers() (ret []RunningContainer, err error) {
 			// ctr.Names starts with "/"
 			name := strings.TrimPrefix(ctr.Names[0], "/")
 			healthy := ctr.State == "running"
-			proxy := httputil.NewSingleHostReverseProxy(containerUrl)
+			var proxy *httputil.ReverseProxy
+			if healthy {
+				proxy = httputil.NewSingleHostReverseProxy(containerUrl)
+			}
 			ret = append(ret, RunningContainer{id, name, healthy, proxy})
 		}
 	}
