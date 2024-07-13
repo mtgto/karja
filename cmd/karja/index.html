@@ -6,6 +6,12 @@
     <title>karja</title>
 </head>
 <body>
-    <p>Hello, world!</p>
+    <h1>Karja</h1>
+    <h2>Running Containers</h2>
+    <ul>
+        {{ range . }}
+            <li>{{ .Name }}</li>
+        {{ end }}
+    </ul>
 </body>
 </html>

@@ -21,7 +21,7 @@ type RunningContainer struct {
 	// container id
 	id string
 	// container name like "awesome-web-service"
-	name string
+	Name string
 	// status of container is healthy
 	healthy bool
 	proxy   *httputil.ReverseProxy
@@ -45,7 +45,7 @@ func main() {
 
 func (s *ReverseProxyService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, ctr := range s.containers {
-		if strings.HasPrefix(r.Host, ctr.name+".") {
+		if strings.HasPrefix(r.Host, ctr.Name+".") {
 			ctr.proxy.ServeHTTP(w, r)
 			return
 		}
@@ -55,7 +55,7 @@ func (s *ReverseProxyService) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := html.Execute(w, nil); err != nil {
+	if err := html.Execute(w, s.containers); err != nil {
 		log.Fatal(err)
 	}
 }
