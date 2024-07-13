@@ -31,7 +31,7 @@ func main() {
 		log.Fatal(err)
 	}
 	service := &ReverseProxyService{containers}
-	mux.Handle("/", service)
+	mux.Handle("/", service.handleReverseProxy(http.HandlerFunc(service.serveAssets)))
 
 	go service.watchContainers(context.TODO(), &dc)
 	log.Fatal(http.ListenAndServe(":9000", mux))
@@ -53,16 +53,21 @@ func (s *ReverseProxyService) watchContainers(ctx context.Context, dockerClient 
 	}
 }
 
-func (s *ReverseProxyService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	for _, ctr := range s.containers {
-		if strings.HasPrefix(r.Host, ctr.Name+".") {
-			if ctr.proxy != nil {
-				ctr.proxy.ServeHTTP(w, r)
+func (s *ReverseProxyService) handleReverseProxy(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for _, ctr := range s.containers {
+			if strings.HasPrefix(r.Host, ctr.Name+".") {
+				if ctr.proxy != nil {
+					ctr.proxy.ServeHTTP(w, r)
+				}
+				return
 			}
-			return
 		}
-	}
+		next.ServeHTTP(w, r)
+	})
+}
 
+func (s *ReverseProxyService) serveAssets(w http.ResponseWriter, r *http.Request) {
 	html, err := template.New("index").Parse(html)
 	if err != nil {
 		log.Fatal(err)
