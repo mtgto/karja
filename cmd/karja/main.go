@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"html/template"
@@ -18,33 +17,36 @@ import (
 //go:embed index.html
 var html string
 
+type RunningContainer struct {
+	// container id
+	id string
+	// container name like "awesome-web-service"
+	name string
+	// status of container is healthy
+	healthy bool
+	proxy   *httputil.ReverseProxy
+}
+
 type ReverseProxyService struct {
 	// TODO: Store information about connected docker containers
-	proxy      *httputil.ReverseProxy
-	containers []types.Container
+	containers []RunningContainer
 }
 
 func main() {
 	mux := http.NewServeMux()
-	otherContainerUrl, err := url.Parse("http://localhost:3000")
-	if err != nil {
-		log.Fatal(err)
-	}
-	proxy := httputil.NewSingleHostReverseProxy(otherContainerUrl)
 	containers, err := fetchContainers()
 	if err != nil {
 		log.Fatal(err)
 	}
-	service := &ReverseProxyService{proxy, containers}
+	service := &ReverseProxyService{containers}
 	mux.Handle("/", service)
 	log.Fatal(http.ListenAndServe(":9000", mux))
 }
 
 func (s *ReverseProxyService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, ctr := range s.containers {
-		// ctr.Names starts with "/"
-		if strings.HasPrefix(ctr.Names[0], "/") && strings.HasPrefix(r.Host, strings.TrimPrefix(ctr.Names[0], "/")+".") {
-			s.proxy.ServeHTTP(w, r)
+		if strings.HasPrefix(r.Host, ctr.name+".") {
+			ctr.proxy.ServeHTTP(w, r)
 			return
 		}
 	}
@@ -58,7 +60,7 @@ func (s *ReverseProxyService) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func fetchContainers() (ret []types.Container, err error) {
+func fetchContainers() (ret []RunningContainer, err error) {
 	// TODO: Store client in struct
 	apiClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -72,8 +74,17 @@ func fetchContainers() (ret []types.Container, err error) {
 
 	for _, ctr := range containers {
 		fmt.Printf("%s %v (status: %s)\n", ctr.ID, ctr.Ports, ctr.Status)
-		if len(ctr.Ports) > 0 {
-			ret = append(ret, ctr)
+		// ctr.Names starts with "/"
+		if len(ctr.Ports) > 0 && len(ctr.Names) > 0 && strings.HasPrefix(ctr.Names[0], "/") {
+			containerUrl, err := url.Parse(fmt.Sprintf("http://localhost:%d", ctr.Ports[0].PublicPort))
+			if err != nil {
+				return nil, err
+			}
+			id := ctr.ID
+			name := strings.TrimPrefix(ctr.Names[0], "/")
+			healthy := ctr.State == "running"
+			proxy := httputil.NewSingleHostReverseProxy(containerUrl)
+			ret = append(ret, RunningContainer{id, name, healthy, proxy})
 		}
 	}
 	return
