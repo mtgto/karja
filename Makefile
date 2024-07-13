@@ -3,4 +3,4 @@
 all: karja
 
 karja:
-	go build ./cmd/karja
+	go build -o karja
