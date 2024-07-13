@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"github.com/docker/docker/client"
 	"html/template"
 	"log"
@@ -32,6 +33,7 @@ func main() {
 	}
 	service := &ReverseProxyService{containers}
 	mux.Handle("/", service.handleReverseProxy(http.HandlerFunc(service.serveAssets)))
+	mux.Handle("/api/containers", service.handleReverseProxy(http.HandlerFunc(service.resolveContainers)))
 
 	go service.watchContainers(context.TODO(), &dc)
 	log.Fatal(http.ListenAndServe(":9000", mux))
@@ -73,6 +75,21 @@ func (s *ReverseProxyService) serveAssets(w http.ResponseWriter, r *http.Request
 		log.Fatal(err)
 	}
 	if err := html.Execute(w, s.containers); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// docker container structure for JSON API
+type ApiContainer struct {
+	Name string `json:"name"`
+}
+
+func (s *ReverseProxyService) resolveContainers(w http.ResponseWriter, r *http.Request) {
+	containers := []ApiContainer{}
+	for _, ctr := range s.containers {
+		containers = append(containers, ApiContainer{ctr.Name})
+	}
+	if err := json.NewEncoder(w).Encode(containers); err != nil {
 		log.Fatal(err)
 	}
 }
