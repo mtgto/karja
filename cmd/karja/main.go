@@ -1,9 +1,14 @@
 package main
 
 import (
+	_ "embed"
+	"html/template"
 	"log"
 	"net/http"
 )
+
+//go:embed index.html
+var html string
 
 func main() {
 	http.HandleFunc("/", baseHandler)
@@ -11,9 +16,11 @@ func main() {
 }
 
 func baseHandler(w http.ResponseWriter, r *http.Request) {
-	hello := []byte("Hello, world!")
-	_, err := w.Write(hello)
+	html, err := template.New("index").Parse(html)
 	if err != nil {
+		log.Fatal(err)
+	}
+	if err := html.Execute(w, nil); err != nil {
 		log.Fatal(err)
 	}
 }
