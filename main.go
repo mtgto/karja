@@ -3,15 +3,12 @@ package main
 import (
 	"context"
 	_ "embed"
-	"fmt"
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"html/template"
 	"log"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"strings"
+	"time"
 )
 
 //go:embed index.html
@@ -24,13 +21,36 @@ type ReverseProxyService struct {
 
 func main() {
 	mux := http.NewServeMux()
-	containers, err := fetchContainers()
+	apiClient, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		log.Fatal(err)
+	}
+	dc := DockerClient{apiClient}
+	containers, err := dc.fetchContainers()
 	if err != nil {
 		log.Fatal(err)
 	}
 	service := &ReverseProxyService{containers}
 	mux.Handle("/", service)
+
+	go service.watchContainers(context.TODO(), &dc)
 	log.Fatal(http.ListenAndServe(":9000", mux))
+}
+
+func (s *ReverseProxyService) watchContainers(ctx context.Context, dockerClient *DockerClient) {
+	for {
+		ticker := time.NewTicker(3 * time.Second)
+		select {
+		case <-ticker.C:
+			containers, _ := dockerClient.fetchContainers()
+			// TODO: Update only changed
+			s.containers = containers
+			log.Print("Fetched containers")
+		case <-ctx.Done():
+			log.Print("Interrupts containers watching")
+			break
+		}
+	}
 }
 
 func (s *ReverseProxyService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -48,34 +68,4 @@ func (s *ReverseProxyService) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	if err := html.Execute(w, s.containers); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func fetchContainers() (ret []RunningContainer, err error) {
-	// TODO: Store client in struct
-	apiClient, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		return nil, err
-	}
-
-	containers, err := apiClient.ContainerList(context.Background(), container.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	for _, ctr := range containers {
-		fmt.Printf("%s %v (status: %s)\n", ctr.ID, ctr.Ports, ctr.Status)
-		// ctr.Names starts with "/"
-		if len(ctr.Ports) > 0 && len(ctr.Names) > 0 && strings.HasPrefix(ctr.Names[0], "/") {
-			containerUrl, err := url.Parse(fmt.Sprintf("http://localhost:%d", ctr.Ports[0].PublicPort))
-			if err != nil {
-				return nil, err
-			}
-			id := ctr.ID
-			name := strings.TrimPrefix(ctr.Names[0], "/")
-			healthy := ctr.State == "running"
-			proxy := httputil.NewSingleHostReverseProxy(containerUrl)
-			ret = append(ret, RunningContainer{id, name, healthy, proxy})
-		}
-	}
-	return
 }
