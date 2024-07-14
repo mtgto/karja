@@ -74,6 +74,15 @@ func (s *ReverseProxyService) watchContainers(ctx context.Context, dockerClient 
 			if s.insideDocker && s.me == nil {
 				s.findMe(containers)
 			}
+			for i, container := range s.containers {
+				if container.healthy && container.proxy == nil {
+					proxy, err := container.createProxy(s.insideDocker)
+					if err != nil {
+						log.Fatal("Failed to create proxy:", err)
+					}
+					s.containers[i].proxy = proxy
+				}
+			}
 			log.Print("Fetched containers")
 		case <-ctx.Done():
 			log.Print("Interrupts containers watching")
@@ -98,6 +107,8 @@ func (s *ReverseProxyService) handleReverseProxy(next http.Handler) http.Handler
 			if strings.HasPrefix(r.Host, ctr.Name+".") {
 				if ctr.proxy != nil {
 					ctr.proxy.ServeHTTP(w, r)
+				} else {
+					log.Println("Reverse proxy is not set yet.")
 				}
 				return
 			}
@@ -119,14 +130,17 @@ type ApiContainer struct {
 func (s *ReverseProxyService) resolveContainers(w http.ResponseWriter, r *http.Request) {
 	var containers []ApiContainer
 	for _, ctr := range s.containers {
-		containers = append(containers, ApiContainer{
-			ctr.container.ID,
-			ctr.Name,
-			ctr.container.Ports[0].PublicPort,
-			ctr.container.Ports[0].PrivatePort,
-			ctr.container.Status,
-			ctr.healthy,
-		})
+		// Ignore container which does not export port(s).
+		if ctr.container.Ports[0].PublicPort > 0 {
+			containers = append(containers, ApiContainer{
+				ctr.container.ID,
+				ctr.Name,
+				ctr.container.Ports[0].PublicPort,
+				ctr.container.Ports[0].PrivatePort,
+				ctr.container.Status,
+				ctr.healthy,
+			})
+		}
 	}
 	if err := json.NewEncoder(w).Encode(containers); err != nil {
 		log.Fatal(err)
