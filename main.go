@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 mtgto <hogerappa@gmail.com>
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import (
@@ -63,7 +66,11 @@ func main() {
 	mux.Handle("/api/containers", karja.handleReverseProxy(http.HandlerFunc(karja.resolveContainers)))
 
 	go karja.watchContainers(context.TODO())
-	log.Fatal(http.ListenAndServe(":9000", mux))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "9000"
+	}
+	log.Fatal(http.ListenAndServe(":"+port, mux))
 }
 
 func (k *Karja) watchContainers(ctx context.Context) {

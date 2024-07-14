@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 mtgto <hogerappa@gmail.com>
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import (
