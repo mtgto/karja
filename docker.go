@@ -35,7 +35,8 @@ func (c *DockerClient) fetchContainers() (ret []RunningContainer, err error) {
 
 	for _, ctr := range containers {
 		fmt.Printf("%s %v (status: %s)\n", ctr.ID, ctr.Ports, ctr.Status)
-		if len(ctr.Ports) > 0 && len(ctr.Names) > 0 && strings.HasPrefix(ctr.Names[0], "/") {
+		// Exclude PublicPort == 0 containers (= not exported)
+		if len(ctr.Ports) > 0 && ctr.Ports[0].PublicPort > 0 && len(ctr.Names) > 0 && strings.HasPrefix(ctr.Names[0], "/") {
 			// ctr.Names starts with "/"
 			name := strings.TrimPrefix(ctr.Names[0], "/")
 			healthy := ctr.State == "running"
@@ -50,6 +51,7 @@ func (rc *RunningContainer) createProxy(insideDocker bool) (*httputil.ReversePro
 		log.Println("Proxy already running")
 		return nil, nil
 	}
+	port := rc.container.Ports[0].PublicPort
 	if len(rc.container.Ports) > 0 && len(rc.container.Names) > 0 && strings.HasPrefix(rc.container.Names[0], "/") {
 		var hostname string
 		if insideDocker {
@@ -57,7 +59,7 @@ func (rc *RunningContainer) createProxy(insideDocker bool) (*httputil.ReversePro
 		} else {
 			hostname = "localhost"
 		}
-		containerUrl, err := url.Parse(fmt.Sprintf("http://%s:%d", hostname, rc.container.Ports[0].PublicPort))
+		containerUrl, err := url.Parse(fmt.Sprintf("http://%s:%d", hostname, port))
 		if err != nil {
 			return nil, err
 		}
