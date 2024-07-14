@@ -2,6 +2,10 @@
 
 Karja is a reverse proxy to running containers for local development.
 
+## Screenshot
+
+![Dashboard](assets/dashboard.jpg)
+
 ## Features
 
 - **Reverse Proxy** Act as a HTTP reverse proxy to containers running in your Docker
