@@ -50,12 +50,8 @@ func (k *Karja) updateContainers() error {
 				rc.proxy = proxy
 			}
 		}
-		if index >= 0 {
-			k.containers[index] = rc
-		} else {
-			k.containers = append(k.containers, rc)
-		}
 	}
+	k.containers = containers
 	return nil
 }
 
@@ -68,7 +64,7 @@ func (k *Karja) fetchContainers() (ret []RunningContainer, err error) {
 
 	for _, ctr := range containers {
 		// Exclude PublicPort == 0 containers (= not exported)
-		if len(ctr.Ports) > 0 && ctr.Ports[0].PublicPort > 0 && len(ctr.Names) > 0 && strings.HasPrefix(ctr.Names[0], "/") {
+		if len(ctr.Ports) > 0 && ctr.Ports[0].PublicPort > 0 && ctr.Ports[0].Type == "tcp" && len(ctr.Names) > 0 && strings.HasPrefix(ctr.Names[0], "/") {
 			// ctr.Names starts with "/"
 			name := strings.TrimPrefix(ctr.Names[0], "/")
 			healthy := ctr.State == "running"

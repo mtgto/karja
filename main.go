@@ -120,8 +120,8 @@ type ApiContainer struct {
 func (k *Karja) resolveContainers(w http.ResponseWriter, r *http.Request) {
 	var containers []ApiContainer
 	for _, ctr := range k.containers {
-		// Ignore container which does not export port(s).
-		if ctr.container.Ports[0].PublicPort > 0 {
+		// Exclude the container karja itself
+		if k.me == nil || k.me.container.ID != ctr.container.ID {
 			containers = append(containers, ApiContainer{
 				ctr.container.ID,
 				ctr.Name,
