@@ -74,7 +74,7 @@ func (k *Karja) watchContainers(ctx context.Context) {
 			if err := k.updateContainers(); err != nil {
 				log.Println("Failed to fetch containers", err)
 			}
-			log.Print("Fetched containers")
+			log.Printf("Fetched %d containers", len(k.containers))
 		case <-ctx.Done():
 			log.Print("Interrupts containers watching")
 			break

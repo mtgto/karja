@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strings"
 )
 
@@ -28,18 +29,28 @@ func (k *Karja) updateContainers() error {
 	if err != nil {
 		return err
 	}
-	// TODO: Update only changed
-	k.containers = containers
 	if k.insideDocker && k.me == nil {
 		k.findMe(containers)
 	}
-	for i, rc := range k.containers {
+	for _, rc := range containers {
+		index := slices.IndexFunc(k.containers, func(krc RunningContainer) bool {
+			return krc.container.ID == rc.container.ID
+		})
 		if rc.healthy && rc.proxy == nil {
-			proxy, err := rc.createProxy(k.insideDocker)
-			if err != nil {
-				log.Fatal("Failed to create proxy:", err)
+			if index >= 0 && k.containers[index].proxy != nil {
+				rc.proxy = k.containers[index].proxy
+			} else {
+				proxy, err := rc.createProxy(k.insideDocker)
+				if err != nil {
+					log.Fatal("Failed to create proxy:", err)
+				}
+				rc.proxy = proxy
 			}
-			k.containers[i].proxy = proxy
+		}
+		if index >= 0 {
+			k.containers[index] = rc
+		} else {
+			k.containers = append(k.containers, rc)
 		}
 	}
 	return nil
@@ -53,7 +64,6 @@ func (k *Karja) fetchContainers() (ret []RunningContainer, err error) {
 	}
 
 	for _, ctr := range containers {
-		fmt.Printf("%s %v (status: %s)\n", ctr.ID, ctr.Ports, ctr.Status)
 		// Exclude PublicPort == 0 containers (= not exported)
 		if len(ctr.Ports) > 0 && ctr.Ports[0].PublicPort > 0 && len(ctr.Names) > 0 && strings.HasPrefix(ctr.Names[0], "/") {
 			// ctr.Names starts with "/"
