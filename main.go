@@ -2,18 +2,19 @@ package main
 
 import (
 	"context"
+	"embed"
 	_ "embed"
 	"encoding/json"
 	"github.com/docker/docker/client"
-	"html/template"
+	"io/fs"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 )
 
-//go:embed index.html
-var html string
+//go:embed web/dist/*
+var assets embed.FS
 
 type ReverseProxyService struct {
 	// TODO: Store information about connected docker containers
@@ -30,9 +31,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	assetsFS, err := fs.Sub(assets, "web/dist")
+	if err != nil {
+		log.Fatal(err)
+	}
 	service := &ReverseProxyService{containers}
 	mux := http.NewServeMux()
-	mux.Handle("/", service.handleReverseProxy(http.HandlerFunc(service.serveAssets)))
+	mux.Handle("/", service.handleReverseProxy(http.FileServer(http.FS(assetsFS))))
 	mux.Handle("/api/containers", service.handleReverseProxy(http.HandlerFunc(service.resolveContainers)))
 
 	go service.watchContainers(context.TODO(), &dc)
@@ -67,16 +72,6 @@ func (s *ReverseProxyService) handleReverseProxy(next http.Handler) http.Handler
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-func (s *ReverseProxyService) serveAssets(w http.ResponseWriter, r *http.Request) {
-	html, err := template.New("index").Parse(html)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := html.Execute(w, s.containers); err != nil {
-		log.Fatal(err)
-	}
 }
 
 // docker container structure for JSON API
