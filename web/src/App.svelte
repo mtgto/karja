@@ -1,5 +1,8 @@
 <script lang="ts">
   import { z } from "zod";
+  import "@fontsource/roboto/300.css";
+  import "@fontsource/roboto/400.css";
+  import "@fontsource/roboto/700.css";
 
   const Container = z.object({
     id: z.string().min(1),
