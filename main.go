@@ -17,9 +17,10 @@ import (
 //go:embed web/dist/*
 var assets embed.FS
 
-type ReverseProxyService struct {
-	containers []RunningContainer
-	hostname   string
+type Karja struct {
+	dockerClient *client.Client
+	containers   []RunningContainer
+	hostname     string
 	// Whether this process is running in Docker
 	insideDocker bool
 	// The container which is running karja itself (nullable)
@@ -27,61 +28,51 @@ type ReverseProxyService struct {
 }
 
 func main() {
-	apiClient, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		log.Fatal(err)
-	}
-	dc := DockerClient{apiClient}
-	containers, err := dc.fetchContainers()
-	if err != nil {
-		log.Fatal(err)
-	}
-	hostname, err := os.Hostname()
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		log.Fatal(err)
 	}
 	// TODO: Use `docker run --cidfile` to detect whether karja is running inside of docker or not
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatal(err)
+	}
 	var insideDocker bool
 	if _, err := os.Stat("/.dockerenv"); err == nil {
 		insideDocker = true
 	}
 	if insideDocker {
-		log.Println("Karja is running inside of Docker.")
+		log.Println("Running inside of Docker")
 	} else {
-		log.Println("Karja is running outside of Docker.")
+		log.Println("Running outside of Docker")
 	}
+
+	karja := Karja{dockerClient, []RunningContainer{}, hostname, insideDocker, nil}
+	_, err = karja.fetchContainers()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Setup HTTP server
 	assetsFS, err := fs.Sub(assets, "web/dist")
 	if err != nil {
 		log.Fatal(err)
 	}
-	service := &ReverseProxyService{containers, hostname, insideDocker, nil}
 	mux := http.NewServeMux()
-	mux.Handle("/", service.handleReverseProxy(http.FileServer(http.FS(assetsFS))))
-	mux.Handle("/api/containers", service.handleReverseProxy(http.HandlerFunc(service.resolveContainers)))
+	mux.Handle("/", karja.handleReverseProxy(http.FileServer(http.FS(assetsFS))))
+	mux.Handle("/api/containers", karja.handleReverseProxy(http.HandlerFunc(karja.resolveContainers)))
 
-	go service.watchContainers(context.TODO(), &dc)
+	go karja.watchContainers(context.TODO())
 	log.Fatal(http.ListenAndServe(":9000", mux))
 }
 
-func (s *ReverseProxyService) watchContainers(ctx context.Context, dockerClient *DockerClient) {
+func (k *Karja) watchContainers(ctx context.Context) {
 	for {
 		ticker := time.NewTicker(3 * time.Second)
 		select {
 		case <-ticker.C:
-			containers, _ := dockerClient.fetchContainers()
-			// TODO: Update only changed
-			s.containers = containers
-			if s.insideDocker && s.me == nil {
-				s.findMe(containers)
-			}
-			for i, container := range s.containers {
-				if container.healthy && container.proxy == nil {
-					proxy, err := container.createProxy(s.insideDocker)
-					if err != nil {
-						log.Fatal("Failed to create proxy:", err)
-					}
-					s.containers[i].proxy = proxy
-				}
+			if err := k.updateContainers(); err != nil {
+				log.Println("Failed to fetch containers", err)
 			}
 			log.Print("Fetched containers")
 		case <-ctx.Done():
@@ -91,24 +82,15 @@ func (s *ReverseProxyService) watchContainers(ctx context.Context, dockerClient 
 	}
 }
 
-func (s *ReverseProxyService) findMe(containers []RunningContainer) {
-	for _, c := range containers {
-		if strings.HasPrefix(c.container.ID, s.hostname) {
-			log.Printf("Detect the container running karja itself: (%s).", c.container.ID)
-			s.me = &c
-			return
-		}
-	}
-}
-
-func (s *ReverseProxyService) handleReverseProxy(next http.Handler) http.Handler {
+// Forward a request to a reverse proxy based on subdomain
+func (k *Karja) handleReverseProxy(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, ctr := range s.containers {
+		for _, ctr := range k.containers {
 			if strings.HasPrefix(r.Host, ctr.Name+".") {
 				if ctr.proxy != nil {
 					ctr.proxy.ServeHTTP(w, r)
 				} else {
-					log.Println("Reverse proxy is not set yet.")
+					log.Println("Reverse proxy is not set yet")
 				}
 				return
 			}
@@ -127,9 +109,10 @@ type ApiContainer struct {
 	Healthy     bool   `json:"healthy"`
 }
 
-func (s *ReverseProxyService) resolveContainers(w http.ResponseWriter, r *http.Request) {
+// `GET /api/containers`
+func (k *Karja) resolveContainers(w http.ResponseWriter, r *http.Request) {
 	var containers []ApiContainer
-	for _, ctr := range s.containers {
+	for _, ctr := range k.containers {
 		// Ignore container which does not export port(s).
 		if ctr.container.Ports[0].PublicPort > 0 {
 			containers = append(containers, ApiContainer{

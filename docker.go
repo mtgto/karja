@@ -5,16 +5,11 @@ import (
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
 	"log"
 	"net/http/httputil"
 	"net/url"
 	"strings"
 )
-
-type DockerClient struct {
-	client *client.Client
-}
 
 type RunningContainer struct {
 	// container name like "awesome-web-service"
@@ -27,8 +22,32 @@ type RunningContainer struct {
 	proxy     *httputil.ReverseProxy
 }
 
-func (c *DockerClient) fetchContainers() (ret []RunningContainer, err error) {
-	containers, err := c.client.ContainerList(context.Background(), container.ListOptions{})
+// Update running containers
+func (k *Karja) updateContainers() error {
+	containers, err := k.fetchContainers()
+	if err != nil {
+		return err
+	}
+	// TODO: Update only changed
+	k.containers = containers
+	if k.insideDocker && k.me == nil {
+		k.findMe(containers)
+	}
+	for i, rc := range k.containers {
+		if rc.healthy && rc.proxy == nil {
+			proxy, err := rc.createProxy(k.insideDocker)
+			if err != nil {
+				log.Fatal("Failed to create proxy:", err)
+			}
+			k.containers[i].proxy = proxy
+		}
+	}
+	return nil
+}
+
+// Fetch running containers using Docker API
+func (k *Karja) fetchContainers() (ret []RunningContainer, err error) {
+	containers, err := k.dockerClient.ContainerList(context.Background(), container.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +63,16 @@ func (c *DockerClient) fetchContainers() (ret []RunningContainer, err error) {
 		}
 	}
 	return
+}
+
+func (k *Karja) findMe(containers []RunningContainer) {
+	for _, rc := range containers {
+		if strings.HasPrefix(rc.container.ID, k.hostname) {
+			log.Printf("Detect the container running karja itself: (%s).", rc.container.ID)
+			k.me = &rc
+			return
+		}
+	}
 }
 
 func (rc *RunningContainer) createProxy(insideDocker bool) (*httputil.ReverseProxy, error) {
