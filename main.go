@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -17,8 +18,9 @@ import (
 var assets embed.FS
 
 type ReverseProxyService struct {
-	// TODO: Store information about connected docker containers
 	containers []RunningContainer
+	// The container which is running karja itself (nullable)
+	me *RunningContainer
 }
 
 func main() {
@@ -31,11 +33,29 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatal(err)
+	}
+	var me *RunningContainer
+	for _, c := range containers {
+		if strings.HasPrefix(c.container.ID, hostname) {
+			log.Println(c.container.ID)
+			me = &c
+			break
+		}
+	}
+	if me == nil {
+		log.Println("Karja is running outside of Docker")
+		log.Println(hostname)
+	} else {
+		log.Printf("Karja is running inside of Docker (%s)", me.container.ID)
+	}
 	assetsFS, err := fs.Sub(assets, "web/dist")
 	if err != nil {
 		log.Fatal(err)
 	}
-	service := &ReverseProxyService{containers}
+	service := &ReverseProxyService{containers, me}
 	mux := http.NewServeMux()
 	mux.Handle("/", service.handleReverseProxy(http.FileServer(http.FS(assetsFS))))
 	mux.Handle("/api/containers", service.handleReverseProxy(http.HandlerFunc(service.resolveContainers)))
