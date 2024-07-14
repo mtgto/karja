@@ -1,8 +1,8 @@
 <script lang="ts">
   import { z } from "zod";
-  import "@fontsource/roboto/300.css";
-  import "@fontsource/roboto/400.css";
-  import "@fontsource/roboto/700.css";
+  import "@fontsource/roboto/latin-300.css";
+  import "@fontsource/roboto/latin-400.css";
+  import "@fontsource/roboto/latin-700.css";
 
   const Container = z.object({
     id: z.string().min(1),
@@ -41,6 +41,7 @@
   <nav class="navigation">
     <section class="container">
       <span class="title">Karja</span>
+      <a href="https://github.com/mtgto/karja">GitHub</a>
     </section>
   </nav>
   <section class="container">
@@ -76,6 +77,7 @@
     margin-bottom: 1rem
     .container
       display: flex
+      justify-content: space-between
       align-items: center
       height: 5.2rem
       .title
