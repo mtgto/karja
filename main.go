@@ -19,6 +19,9 @@ var assets embed.FS
 
 type ReverseProxyService struct {
 	containers []RunningContainer
+	hostname   string
+	// Whether this process is running in Docker
+	insideDocker bool
 	// The container which is running karja itself (nullable)
 	me *RunningContainer
 }
@@ -37,25 +40,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	var me *RunningContainer
-	for _, c := range containers {
-		if strings.HasPrefix(c.container.ID, hostname) {
-			log.Println(c.container.ID)
-			me = &c
-			break
-		}
+	// TODO: Use `docker run --cidfile` to detect whether karja is running inside of docker or not
+	var insideDocker bool
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		insideDocker = true
 	}
-	if me == nil {
-		log.Println("Karja is running outside of Docker")
-		log.Println(hostname)
+	if insideDocker {
+		log.Println("Karja is running inside of Docker.")
 	} else {
-		log.Printf("Karja is running inside of Docker (%s)", me.container.ID)
+		log.Println("Karja is running outside of Docker.")
 	}
 	assetsFS, err := fs.Sub(assets, "web/dist")
 	if err != nil {
 		log.Fatal(err)
 	}
-	service := &ReverseProxyService{containers, me}
+	service := &ReverseProxyService{containers, hostname, insideDocker, nil}
 	mux := http.NewServeMux()
 	mux.Handle("/", service.handleReverseProxy(http.FileServer(http.FS(assetsFS))))
 	mux.Handle("/api/containers", service.handleReverseProxy(http.HandlerFunc(service.resolveContainers)))
@@ -72,10 +71,23 @@ func (s *ReverseProxyService) watchContainers(ctx context.Context, dockerClient 
 			containers, _ := dockerClient.fetchContainers()
 			// TODO: Update only changed
 			s.containers = containers
+			if s.insideDocker && s.me == nil {
+				s.findMe(containers)
+			}
 			log.Print("Fetched containers")
 		case <-ctx.Done():
 			log.Print("Interrupts containers watching")
 			break
+		}
+	}
+}
+
+func (s *ReverseProxyService) findMe(containers []RunningContainer) {
+	for _, c := range containers {
+		if strings.HasPrefix(c.container.ID, s.hostname) {
+			log.Printf("Detect the container running karja itself: (%s).", c.container.ID)
+			s.me = &c
+			return
 		}
 	}
 }
