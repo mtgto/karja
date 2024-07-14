@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Counter from "./lib/Counter.svelte";
   import { z } from "zod";
 
   const Container = z.object({
@@ -13,31 +12,37 @@
 
   type Container = z.infer<typeof Container>;
   let containers: Container[] = [];
+  let lastUpdated: string | undefined = undefined;
 
   const containerUrl = (container: Container): string => {
-    const url = new URL(window.origin)
-    url.hostname = container.name + "." + url.hostname
-    return url.toString()
+    const url = new URL(window.origin);
+    url.hostname = container.name + "." + url.hostname;
+    return url.toString();
   }
 
   const refresh = async () => {
-    const json = await fetch("/api/containers").then(r => r.json())
-    containers = Container.array().parse(json)
+    const json = await fetch("/api/containers").then(r => r.json());
+    containers = Container.array().parse(json);
+    lastUpdated = new Date().toLocaleString();
   }
 
   setInterval(async () => {
-    await refresh()
+    await refresh();
   }, 60 * 1000)
 
   // initial fetch
-  refresh()
+  refresh();
 </script>
 
-<main>
+<main class="wrapper">
+  <nav class="navigation">
+    <section class="container">
+      <span class="title">Karja</span>
+    </section>
+  </nav>
   <section class="container">
-    <h2>Karja</h2>
-
     <h3>Running containers</h3>
+    <p>Last updated: {lastUpdated ?? "N/A"}</p>
     <table>
       <thead>
         <tr>
@@ -58,24 +63,22 @@
         {/each}
       </tbody>
     </table>
-
-    <div class="card">
-      <Counter />
-    </div>
-
-    <p>
-      Check out <a href="https://github.com/sveltejs/kit#readme" target="_blank" rel="noreferrer">SvelteKit</a>, the official Svelte app framework powered by Vite!
-    </p>
-
-    <p class="read-the-docs">
-      Click on the Vite and Svelte logos to learn more
-    </p>
   </section>
 </main>
 
-<style>
-  .container {
-    margin: 0 auto;
-    width: 80rem;
-  }
+<style lang="sass">
+  .navigation
+    max-width: 100%
+    background: #f4f4f4
+    margin-bottom: 1rem
+    .container
+      display: flex
+      align-items: center
+      height: 5.2rem
+      .title
+        font-size: 1.2em
+
+  .container
+    margin: 0 auto
+    width: 80rem
 </style>
