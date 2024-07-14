@@ -1,4 +1,4 @@
-import "milligram/dist/milligram.min.css";
+import "./assets/style.sass";
 import App from "./App.svelte";
 
 const app = new App({
