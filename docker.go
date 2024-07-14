@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"net/http/httputil"
@@ -15,13 +16,12 @@ type DockerClient struct {
 }
 
 type RunningContainer struct {
-	// container id
-	id string
 	// container name like "awesome-web-service"
 	Name string
 	// status of container is healthy
-	healthy bool
-	proxy   *httputil.ReverseProxy
+	healthy   bool
+	container types.Container
+	proxy     *httputil.ReverseProxy
 }
 
 func (c *DockerClient) fetchContainers() (ret []RunningContainer, err error) {
@@ -37,7 +37,6 @@ func (c *DockerClient) fetchContainers() (ret []RunningContainer, err error) {
 			if err != nil {
 				return nil, err
 			}
-			id := ctr.ID
 			// ctr.Names starts with "/"
 			name := strings.TrimPrefix(ctr.Names[0], "/")
 			healthy := ctr.State == "running"
@@ -45,7 +44,7 @@ func (c *DockerClient) fetchContainers() (ret []RunningContainer, err error) {
 			if healthy {
 				proxy = httputil.NewSingleHostReverseProxy(containerUrl)
 			}
-			ret = append(ret, RunningContainer{id, name, healthy, proxy})
+			ret = append(ret, RunningContainer{name, healthy, ctr, proxy})
 		}
 	}
 	return

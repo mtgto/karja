@@ -21,7 +21,6 @@ type ReverseProxyService struct {
 }
 
 func main() {
-	mux := http.NewServeMux()
 	apiClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		log.Fatal(err)
@@ -32,6 +31,7 @@ func main() {
 		log.Fatal(err)
 	}
 	service := &ReverseProxyService{containers}
+	mux := http.NewServeMux()
 	mux.Handle("/", service.handleReverseProxy(http.HandlerFunc(service.serveAssets)))
 	mux.Handle("/api/containers", service.handleReverseProxy(http.HandlerFunc(service.resolveContainers)))
 
@@ -81,13 +81,25 @@ func (s *ReverseProxyService) serveAssets(w http.ResponseWriter, r *http.Request
 
 // docker container structure for JSON API
 type ApiContainer struct {
-	Name string `json:"name"`
+	Id          string `json:"id"`
+	Name        string `json:"name"`
+	PublicPort  uint16 `json:"public_port"`
+	PrivatePort uint16 `json:"private_port"`
+	Status      string `json:"status"`
+	Healthy     bool   `json:"healthy"`
 }
 
 func (s *ReverseProxyService) resolveContainers(w http.ResponseWriter, r *http.Request) {
-	containers := []ApiContainer{}
+	var containers []ApiContainer
 	for _, ctr := range s.containers {
-		containers = append(containers, ApiContainer{ctr.Name})
+		containers = append(containers, ApiContainer{
+			ctr.container.ID,
+			ctr.Name,
+			ctr.container.Ports[0].PublicPort,
+			ctr.container.Ports[0].PrivatePort,
+			ctr.container.Status,
+			ctr.healthy,
+		})
 	}
 	if err := json.NewEncoder(w).Encode(containers); err != nil {
 		log.Fatal(err)
