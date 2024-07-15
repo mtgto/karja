@@ -92,15 +92,21 @@ func (k *Karja) watchContainers(ctx context.Context) {
 // Forward a request to a reverse proxy based on subdomain
 func (k *Karja) handleReverseProxy(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, ctr := range k.containers {
-			if strings.HasPrefix(r.Host, ctr.Name+".") {
-				if ctr.proxy != nil {
-					ctr.proxy.ServeHTTP(w, r)
-				} else {
-					log.Println("Reverse proxy is not set yet")
+		if strings.Contains(r.Host, ".localhost") {
+			for _, ctr := range k.containers {
+				if strings.HasPrefix(r.Host, ctr.Name+".") {
+					if ctr.proxy != nil {
+						ctr.proxy.ServeHTTP(w, r)
+					} else {
+						log.Println("Reverse proxy is not set yet")
+					}
+					return
 				}
-				return
 			}
+			// return 503 if reverse proxy is not set yet
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("Reverse proxy is preparing by Karja"))
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
