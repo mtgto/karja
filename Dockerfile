@@ -12,7 +12,7 @@ COPY Makefile go.mod go.sum ./
 RUN go mod download
 COPY *.go .
 COPY --from=asset /node/dist ./web/dist
-RUN CGO_ENABLED=0 make
+RUN CGO_ENABLED=0 LDFLAGS="-w -s" make
 
 FROM gcr.io/distroless/static-debian12
 
