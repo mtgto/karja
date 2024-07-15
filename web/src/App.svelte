@@ -16,6 +16,9 @@
   type Container = z.infer<typeof Container>;
   let containers: Container[] = [];
   let lastUpdated: string | undefined = undefined;
+  // next schedule to fetch
+  let scheduled: Date = new Date();
+  let remainingSecond: number = 0;
 
   const containerUrl = (container: Container): string => {
     const url = new URL(window.origin);
@@ -27,14 +30,24 @@
     const json = await fetch("/api/containers").then(r => r.json());
     containers = Container.array().parse(json);
     lastUpdated = new Date().toLocaleString();
+    scheduled = new Date(Date.now() + 60000);
+    remainingSecond = 60;
   }
 
   setInterval(async () => {
-    await refresh();
-  }, 60 * 1000)
-
-  // initial fetch
-  refresh();
+    const now = Date.now();
+    if (scheduled.getTime() < now) {
+      try {
+        await refresh();
+      } catch (e) {
+        console.error(e)
+        scheduled = new Date(Date.now() + 60000);
+        remainingSecond = 60;
+      }
+    } else {
+      remainingSecond = Math.floor((scheduled.getTime() - now) / 1000)
+    }
+  }, 1000)
 </script>
 
 <main class="wrapper">
@@ -67,6 +80,10 @@
         {/each}
       </tbody>
     </table>
+    <nav class="schedule">
+      <p>Next update will begin {remainingSecond} seconds later.</p>
+      <button on:click={refresh}>Update Now</button>
+    </nav>
   </section>
 </main>
 
@@ -86,4 +103,6 @@
   .container
     margin: 0 auto
     width: 80rem
+  .schedule
+    margin-top: 2rem
 </style>
