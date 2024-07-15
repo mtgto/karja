@@ -35,19 +35,19 @@ func (k *Karja) updateContainers() error {
 	if k.insideDocker && k.me == nil {
 		k.findMe(containers)
 	}
-	for _, rc := range containers {
+	for i, rc := range containers {
 		index := slices.IndexFunc(k.containers, func(krc RunningContainer) bool {
 			return krc.container.ID == rc.container.ID
 		})
 		if rc.healthy && rc.proxy == nil {
 			if index >= 0 && k.containers[index].proxy != nil {
-				rc.proxy = k.containers[index].proxy
+				containers[i].proxy = k.containers[index].proxy
 			} else {
 				proxy, err := rc.createProxy(k.insideDocker)
 				if err != nil {
 					log.Fatal("Failed to create proxy:", err)
 				}
-				rc.proxy = proxy
+				containers[i].proxy = proxy
 			}
 		}
 	}
