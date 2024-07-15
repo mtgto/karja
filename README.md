@@ -17,7 +17,7 @@ Karja is a reverse proxy to Docker containers for local development.
 - [Golang](https://go.dev/)
 - [Docker Engine Go SDK](https://docs.docker.com/engine/api/sdk/)
 - [Svelte](https://svelte.dev/)
-- [milligram](https://milligram.io/)
+- [Pico CSS](https://picocss.com/)
 
 ## Usage
 
