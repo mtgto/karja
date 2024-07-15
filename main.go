@@ -35,7 +35,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// TODO: Use `docker run --cidfile` to detect whether karja is running inside of docker or not
 	hostname, err := os.Hostname()
 	if err != nil {
 		log.Fatal(err)
