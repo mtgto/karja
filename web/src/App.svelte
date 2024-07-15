@@ -1,8 +1,5 @@
 <script lang="ts">
   import { z } from "zod";
-  import "@fontsource/roboto/latin-300.css";
-  import "@fontsource/roboto/latin-400.css";
-  import "@fontsource/roboto/latin-700.css";
 
   const Container = z.object({
     id: z.string().min(1),
@@ -51,12 +48,16 @@
 </script>
 
 <main class="wrapper">
-  <nav class="navigation">
-    <section class="container">
-      <span class="title">Karja</span>
-      <a href="https://github.com/mtgto/karja">GitHub</a>
-    </section>
-  </nav>
+  <header class="navigation">
+    <nav class="container">
+      <ul>
+        <li><strong>Karja</strong></li>
+      </ul>
+      <ul>
+        <li><a href="https://github.com/mtgto/karja">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
   <section class="container">
     <h3>Running containers</h3>
     <p>Last updated: {lastUpdated ?? "N/A"}</p>
@@ -80,29 +81,21 @@
         {/each}
       </tbody>
     </table>
-    <nav class="schedule">
+    <section class="schedule">
       <p>Next update will begin {remainingSecond} seconds later.</p>
       <button on:click={refresh}>Update Now</button>
-    </nav>
+    </section>
   </section>
 </main>
 
-<style lang="sass">
-  .navigation
-    max-width: 100%
-    background: #f4f4f4
-    margin-bottom: 1rem
-    .container
-      display: flex
-      justify-content: space-between
-      align-items: center
-      height: 5.2rem
-      .title
-        font-size: 1.2em
-
-  .container
-    margin: 0 auto
-    width: 80rem
-  .schedule
-    margin-top: 2rem
+<style lang="scss">
+  :root {
+    --pico-form-element-spacing-vertical: 0.4rem;
+  }
+  header.navigation {
+    margin-bottom: 1rem;
+  }
+  .schedule {
+    margin-top: 2rem;
+  }
 </style>
