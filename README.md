@@ -1,6 +1,9 @@
-# Karja
+Karja
+====
+[![Docker Image Size (latest tag)](https://img.shields.io/docker/image-size/mtgto/karja/latest)](https://hub.docker.com/r/mtgto/karja/)
+[![docker build status](https://github.com/mtgto/karja/actions/workflows/build.yml/badge.svg)](https://github.com/mtgto/karja/actions/workflows/build.yml)
 
-Karja is a reverse proxy to Docker containers for local development.
+Karja is a HTTP reverse proxy to Docker containers for local web development.
 
 ## Screenshot
 
