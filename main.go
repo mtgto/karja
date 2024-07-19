@@ -31,7 +31,7 @@ type Karja struct {
 }
 
 func main() {
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		log.Fatal(err)
 	}
