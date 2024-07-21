@@ -46,9 +46,9 @@ func (k *Karja) updateContainers() error {
 			if index >= 0 && k.containers[index].proxy != nil {
 				containers[i].proxy = k.containers[index].proxy
 			} else {
-				proxy, err := rc.createProxy(k.insideDocker)
+				proxy, err := k.createProxy(rc)
 				if err != nil {
-					log.Fatal("Failed to create proxy:", err)
+					log.Printf("Failed to create proxy for %s: %v", rc.Name, err)
 				}
 				containers[i].proxy = proxy
 			}
@@ -66,13 +66,23 @@ func (k *Karja) fetchContainers() (ret []RunningContainer, err error) {
 	}
 
 	for _, ctr := range containers {
+		// ctr.Names starts with "/"
+		if len(ctr.Names) == 0 && !strings.HasPrefix(ctr.Names[0], "/") {
+			continue
+		}
 		// TODO: In insideDocker, exclude container which does not share docker network with karja
-		// Exclude PublicPort == 0 containers (= not exported)
-		if len(ctr.Ports) > 0 && ctr.Ports[0].PublicPort > 0 && ctr.Ports[0].Type == "tcp" && len(ctr.Names) > 0 && strings.HasPrefix(ctr.Names[0], "/") {
-			// ctr.Names starts with "/"
+		if k.insideDocker {
 			name := strings.TrimPrefix(ctr.Names[0], "/")
 			healthy := ctr.State == "running"
 			ret = append(ret, RunningContainer{name, healthy, ctr, false, nil})
+		} else {
+			// Exclude PublicPort == 0 containers (= not exported)
+			if len(ctr.Ports) > 0 && ctr.Ports[0].PublicPort > 0 && ctr.Ports[0].Type == "tcp" {
+				// ctr.Names starts with "/"
+				name := strings.TrimPrefix(ctr.Names[0], "/")
+				healthy := ctr.State == "running"
+				ret = append(ret, RunningContainer{name, healthy, ctr, false, nil})
+			}
 		}
 	}
 	return
@@ -89,68 +99,58 @@ func (k *Karja) findMe(containers []RunningContainer) {
 }
 
 // return remote proxy url contains host and port
-func (k *Karja) decideRoute(dest RunningContainer) (string, error) {
+func (k *Karja) decideRoute(dest RunningContainer) (*url.URL, error) {
 	if !k.insideDocker {
 		if len(dest.container.Ports) > 0 && dest.container.Ports[0].PublicPort > 0 && dest.container.Ports[0].Type == "tcp" {
-			return fmt.Sprintf("http://localhost:%d", dest.container.Ports[0].PublicPort), nil
+			return url.Parse(fmt.Sprintf("http://localhost:%d", dest.container.Ports[0].PublicPort))
 		} else {
-			return "", errors.New("no exported port")
+			return nil, errors.New("no exported port")
 		}
 	}
 	if k.me == nil {
 		log.Println("Cannot decide the route before my container is found")
-		return "", nil
+		return nil, nil
 	}
 	for _, network1 := range k.me.container.NetworkSettings.Networks {
 		for _, network2 := range dest.container.NetworkSettings.Networks {
 			if network1.NetworkID == network2.NetworkID {
 				info, err := k.dockerClient.ContainerInspect(context.Background(), dest.container.ID)
 				if err != nil {
-					return "", err
+					return nil, err
 				}
 				// whether dest container has env PORT
 				for _, pair := range info.Config.Env {
 					kv := strings.Split(pair, "=")
 					if len(kv) == 2 && kv[0] == "VIRTUAL_PORT" {
 						if port, err := strconv.Atoi(kv[1]); err == nil {
-							return fmt.Sprintf("http://%s:%d", network2.IPAddress, port), nil
+							return url.Parse(fmt.Sprintf("http://%s:%d", network2.IPAddress, port))
 						}
 					}
 				}
 				if len(dest.container.Ports) > 0 && dest.container.Ports[0].PublicPort > 0 && dest.container.Ports[0].Type == "tcp" {
-					return fmt.Sprintf("http://host.docker.internal:%d", dest.container.Ports[0].PublicPort), nil
+					return url.Parse(fmt.Sprintf("http://host.docker.internal:%d", dest.container.Ports[0].PublicPort))
 				}
-				return fmt.Sprintf("http://%s", network2.IPAddress), nil
+				return url.Parse(fmt.Sprintf("http://%s", network2.IPAddress))
 			}
 		}
 	}
 	if len(dest.container.Ports) > 0 && dest.container.Ports[0].PublicPort > 0 && dest.container.Ports[0].Type == "tcp" {
-		return fmt.Sprintf("http://host.docker.internal:%d", dest.container.Ports[0].PublicPort), nil
+		return url.Parse(fmt.Sprintf("http://host.docker.internal:%d", dest.container.Ports[0].PublicPort))
 	} else {
-		return "", errors.New("no route found")
+		return nil, errors.New("no route found")
 	}
 }
 
-func (rc *RunningContainer) createProxy(insideDocker bool) (*httputil.ReverseProxy, error) {
-	if rc.proxy != nil {
+func (k *Karja) createProxy(dest RunningContainer) (*httputil.ReverseProxy, error) {
+	if dest.proxy != nil {
 		log.Println("Proxy already running")
 		return nil, nil
 	}
-	port := rc.container.Ports[0].PublicPort
-	if len(rc.container.Ports) > 0 && len(rc.container.Names) > 0 && strings.HasPrefix(rc.container.Names[0], "/") {
-		var hostname string
-		if insideDocker {
-			hostname = "host.docker.internal"
-		} else {
-			hostname = "localhost"
-		}
-		containerUrl, err := url.Parse(fmt.Sprintf("http://%s:%d", hostname, port))
-		if err != nil {
-			return nil, err
-		}
+	containerUrl, err := k.decideRoute(dest)
+	if err != nil {
+		return nil, err
+	} else if containerUrl != nil {
 		return httputil.NewSingleHostReverseProxy(containerUrl), nil
-	} else {
-		// TODO: returns validation error
 	}
 	return nil, nil
 }

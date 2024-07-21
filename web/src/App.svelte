@@ -5,8 +5,6 @@
     id: z.string().min(1),
     name: z.string().min(1),
     status: z.string().min(1),
-    public_port: z.number().positive().lte(65535),
-    private_port: z.number().positive().lte(65535),
     healthy: z.boolean(),
   });
 
@@ -65,7 +63,6 @@
       <thead>
         <tr>
           <th>Name</th>
-          <th>Port</th>
           <th>Status</th>
           <th>Action</th>
         </tr>
@@ -74,7 +71,6 @@
         {#each containers as container}
           <tr>
             <td>{container.name}</td>
-            <td>{container.public_port}:{container.private_port}</td>
             <td>{container.status}</td>
             <td><a target="_blank" href="{containerUrl(container)}">Open</a></td>
           </tr>
