@@ -1,0 +1,19 @@
+# docker compose -p example-karja up -d
+services:
+  web1: # listen = 80 / no exported
+    image: "nginx:alpine"
+  web2: # listen = 80 / export=8080
+    image: "nginx:alpine"
+    ports:
+      - 8080:80
+  web3: # listen = 8888 / no exported
+    image: "nginx:alpine"
+    environment:
+      - NGINX_PORT=8888
+      - VIRTUAL_PORT=8888
+  karja:
+    image: "mtgto/karja:latest"
+    ports:
+      - 80:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
