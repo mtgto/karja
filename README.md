@@ -45,6 +45,12 @@ PORT=80 ./karja
 
 Open http://localhost
 
+## Environment Variables
+
+Name | Value
+---- | -----
+PORT | TCP Port number to listen. Default is `9000`.
+
 ## Development
 
 Karja consists of a frontend with Svelte and a backend with Golang.
