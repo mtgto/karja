@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -12,6 +13,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -22,6 +24,7 @@ type RunningContainer struct {
 	healthy   bool
 	container types.Container
 	// whether established docker network connection between target and karja.
+	// always false when karja is running outside of Docker.
 	connected bool
 	proxy     *httputil.ReverseProxy
 }
@@ -63,6 +66,7 @@ func (k *Karja) fetchContainers() (ret []RunningContainer, err error) {
 	}
 
 	for _, ctr := range containers {
+		// TODO: In insideDocker, exclude container which does not share docker network with karja
 		// Exclude PublicPort == 0 containers (= not exported)
 		if len(ctr.Ports) > 0 && ctr.Ports[0].PublicPort > 0 && ctr.Ports[0].Type == "tcp" && len(ctr.Names) > 0 && strings.HasPrefix(ctr.Names[0], "/") {
 			// ctr.Names starts with "/"
@@ -81,6 +85,49 @@ func (k *Karja) findMe(containers []RunningContainer) {
 			k.me = &rc
 			return
 		}
+	}
+}
+
+// return remote proxy url contains host and port
+func (k *Karja) decideRoute(dest RunningContainer) (string, error) {
+	if !k.insideDocker {
+		if len(dest.container.Ports) > 0 && dest.container.Ports[0].PublicPort > 0 && dest.container.Ports[0].Type == "tcp" {
+			return fmt.Sprintf("http://localhost:%d", dest.container.Ports[0].PublicPort), nil
+		} else {
+			return "", errors.New("no exported port")
+		}
+	}
+	if k.me == nil {
+		log.Println("Cannot decide the route before my container is found")
+		return "", nil
+	}
+	for _, network1 := range k.me.container.NetworkSettings.Networks {
+		for _, network2 := range dest.container.NetworkSettings.Networks {
+			if network1.NetworkID == network2.NetworkID {
+				info, err := k.dockerClient.ContainerInspect(context.Background(), dest.container.ID)
+				if err != nil {
+					return "", err
+				}
+				// whether dest container has env PORT
+				for _, pair := range info.Config.Env {
+					kv := strings.Split(pair, "=")
+					if len(kv) == 2 && kv[0] == "VIRTUAL_PORT" {
+						if port, err := strconv.Atoi(kv[1]); err == nil {
+							return fmt.Sprintf("http://%s:%d", network2.IPAddress, port), nil
+						}
+					}
+				}
+				if len(dest.container.Ports) > 0 && dest.container.Ports[0].PublicPort > 0 && dest.container.Ports[0].Type == "tcp" {
+					return fmt.Sprintf("http://host.docker.internal:%d", dest.container.Ports[0].PublicPort), nil
+				}
+				return fmt.Sprintf("http://%s", network2.IPAddress), nil
+			}
+		}
+	}
+	if len(dest.container.Ports) > 0 && dest.container.Ports[0].PublicPort > 0 && dest.container.Ports[0].Type == "tcp" {
+		return fmt.Sprintf("http://host.docker.internal:%d", dest.container.Ports[0].PublicPort), nil
+	} else {
+		return "", errors.New("no route found")
 	}
 }
 
