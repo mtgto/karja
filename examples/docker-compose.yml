@@ -11,6 +11,8 @@ services:
     environment:
       - NGINX_PORT=8888
       - VIRTUAL_PORT=8888
+    volumes:
+      - $PWD/nginx-change-port.conf.template:/etc/nginx/templates/nginx-change-port.conf.template
   karja:
     image: "mtgto/karja:latest"
     ports:
