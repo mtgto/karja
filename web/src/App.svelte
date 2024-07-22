@@ -6,6 +6,7 @@
     name: z.string().min(1),
     status: z.string().min(1),
     healthy: z.boolean(),
+    connectable: z.boolean(),
   });
 
   type Container = z.infer<typeof Container>;
@@ -23,7 +24,16 @@
 
   const refresh = async () => {
     const json = await fetch("/api/containers").then(r => r.json());
-    containers = Container.array().parse(json);
+    containers = Container.array().parse(json).sort((a, b) => {
+      // sort by connectable
+      if (a.connectable === b.connectable) {
+        return 0;
+      } else if (a.connectable) {
+        return -1;
+      } else {
+        return 1;
+      }
+    });
     lastUpdated = new Date().toLocaleString();
     scheduled = new Date(Date.now() + 60000);
     remainingSecond = 60;
@@ -72,7 +82,11 @@
           <tr>
             <td>{container.name}</td>
             <td>{container.status}</td>
-            <td><a target="_blank" href="{containerUrl(container)}">Open</a></td>
+            <td>
+              {#if container.connectable}
+              <a target="_blank" href="{containerUrl(container)}">Open</a>
+              {/if}
+            </td>
           </tr>
         {/each}
       </tbody>

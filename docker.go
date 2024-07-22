@@ -70,20 +70,9 @@ func (k *Karja) fetchContainers() (ret []RunningContainer, err error) {
 		if len(ctr.Names) == 0 && !strings.HasPrefix(ctr.Names[0], "/") {
 			continue
 		}
-		// TODO: In insideDocker, exclude container which does not share docker network with karja
-		if k.insideDocker {
-			name := strings.TrimPrefix(ctr.Names[0], "/")
-			healthy := ctr.State == "running"
-			ret = append(ret, RunningContainer{name, healthy, ctr, false, nil})
-		} else {
-			// Exclude PublicPort == 0 containers (= not exported)
-			if len(ctr.Ports) > 0 && ctr.Ports[0].PublicPort > 0 && ctr.Ports[0].Type == "tcp" {
-				// ctr.Names starts with "/"
-				name := strings.TrimPrefix(ctr.Names[0], "/")
-				healthy := ctr.State == "running"
-				ret = append(ret, RunningContainer{name, healthy, ctr, false, nil})
-			}
-		}
+		name := strings.TrimPrefix(ctr.Names[0], "/")
+		healthy := ctr.State == "running"
+		ret = append(ret, RunningContainer{name, healthy, ctr, false, nil})
 	}
 	return
 }
@@ -104,7 +93,7 @@ func (k *Karja) decideRoute(dest RunningContainer) (*url.URL, error) {
 		if len(dest.container.Ports) > 0 && dest.container.Ports[0].PublicPort > 0 && dest.container.Ports[0].Type == "tcp" {
 			return url.Parse(fmt.Sprintf("http://localhost:%d", dest.container.Ports[0].PublicPort))
 		} else {
-			return nil, errors.New("no exported port")
+			return nil, nil
 		}
 	}
 	if k.me == nil {

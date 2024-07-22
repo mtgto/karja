@@ -113,10 +113,11 @@ func (k *Karja) handleReverseProxy(next http.Handler) http.Handler {
 
 // docker container structure for JSON API
 type ApiContainer struct {
-	Id      string `json:"id"`
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	Healthy bool   `json:"healthy"`
+	Id          string `json:"id"`
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	Healthy     bool   `json:"healthy"`
+	Connectable bool   `json:"connectable"`
 }
 
 // `GET /api/containers`
@@ -130,6 +131,7 @@ func (k *Karja) resolveContainers(w http.ResponseWriter, r *http.Request) {
 				ctr.Name,
 				ctr.container.Status,
 				ctr.healthy,
+				ctr.proxy != nil,
 			})
 		}
 	}
