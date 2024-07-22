@@ -45,11 +45,29 @@ PORT=80 ./karja
 
 Open http://localhost
 
+## Try it out
+
+See [examples/docker-compose.yml](examples/docker-compose.yml).
+
 ## Environment Variables
 
 Name | Value
 ---- | -----
 PORT | TCP Port number to listen. Default is `9000`.
+
+## Requirements
+
+You can run Karja inside or outside of Docker.
+Karja automatically finds the way to your container depends on whether it is inside or outside Docker.
+
+- Inside of Docker (as a Docker container)
+  - If Karja and the target container share the same Docker network, determine the port in the following order:
+    1. `VIRTUAL_PORT` environment variable in target container
+    2. Exported TCP port
+    3. Port 80
+  - Otherwise, select exported TCP port if exists
+- Outside of Docker
+  - Select exported TCP port if exists
 
 ## Development
 
@@ -69,7 +87,8 @@ go build
 
 ## Related projects
 
-- [yaichi](https://github.com/mtsmfm/yaichi) It has almost the same purpose and uses [ngx_mruby](https://ngx.mruby.org/). It supports containers that don't publish port(s)
+- [yaichi](https://github.com/mtsmfm/yaichi) Great software that was the basis ideas for Karja such as the dashboard and reverse proxy for running containers in local development.
+- [nginx-proxy](https://github.com/nginx-proxy/nginx-proxy) Famous reverse proxy software for docker containers in production. We refer to how nginx-proxy determines the port to the container.
 
 ## License
 
