@@ -59,7 +59,7 @@
   }, 1000)
 </script>
 
-<main class="wrapper">
+<div class="wrapper">
   <header class="navigation">
     <nav class="container">
       <ul>
@@ -70,7 +70,7 @@
       </ul>
     </nav>
   </header>
-  <section class="container">
+  <main class="container">
     <h3>Running containers</h3>
     <p>Last updated: {lastUpdated ?? "N/A"}</p>
     <table>
@@ -99,8 +99,8 @@
       <p>Next update will begin {remainingSecond} seconds later.</p>
       <button on:click={refresh} aria-busy={refreshing}>Update Now</button>
     </section>
-  </section>
-</main>
+  </main>
+</div>
 
 <style lang="scss">
   :root {
