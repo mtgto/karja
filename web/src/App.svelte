@@ -11,6 +11,7 @@
 
   type Container = z.infer<typeof Container>;
   let containers: Container[] = [];
+  let refreshing: boolean = false;
   let lastUpdated: string | undefined = undefined;
   // next schedule to fetch
   let scheduled: Date = new Date();
@@ -43,11 +44,14 @@
     const now = Date.now();
     if (scheduled.getTime() < now) {
       try {
+        refreshing = true;
         await refresh();
       } catch (e) {
         console.error(e)
         scheduled = new Date(Date.now() + 60000);
         remainingSecond = 60;
+      } finally {
+        refreshing = false;
       }
     } else {
       remainingSecond = Math.floor((scheduled.getTime() - now) / 1000)
@@ -93,7 +97,7 @@
     </table>
     <section class="schedule">
       <p>Next update will begin {remainingSecond} seconds later.</p>
-      <button on:click={refresh}>Update Now</button>
+      <button on:click={refresh} aria-busy={refreshing}>Update Now</button>
     </section>
   </section>
 </main>
